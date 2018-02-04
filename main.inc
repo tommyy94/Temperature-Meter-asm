@@ -21,6 +21,16 @@
 ; ============================================
 .equ ADC_THRESHOLD = $94 ;used for testing whether ADC works
 
+;LCD CONSTANTS
+.equ EN = PINB0
+.equ RW = PINB3
+.equ RS = PINB2
+.equ DATA_LINES = PORTD
+.equ CONTROL_LINES = PORTB
+.equ DATA_DIRECTION = DDRD
+.equ CONTROL_DIRECTION = DDRB
+
+
 ; ============================================
 ;   FIXED + DERIVED CONSTANTS
 ; ============================================
@@ -49,10 +59,10 @@
 .listmac ;list macros in .lst file
 
 .macro INIT_STACK_POINTER
-    ldi   tmp_reg0, HIGH(RAMEND)
-    out   SPH, tmp_reg0
-    ldi   tmp_reg0, LOW(RAMEND)
-    out   SPL,  tmp_reg0
+    ldi tmp_reg0, HIGH(RAMEND)
+    out SPH, tmp_reg0
+    ldi tmp_reg0, LOW(RAMEND)
+    out SPL,  tmp_reg0
 .endmacro
 
 
@@ -67,32 +77,42 @@
         .error "Invalid port (valid ports: PORTB, PORTC, PORTD)"
     .endif
 
-    sbic  @1, @0	                ;if bit clear, skip next line
-    cbi   @2, @0                    ;set bit low
+    sbic @1, @0	                ;if bit clear, skip next line
+    cbi @2, @0                    ;set bit low
 
-    sbis  @1, @0	                ;if bit high, skip next line
-    sbi   @2, @0                    ;set bit high
+    sbis @1, @0	                ;if bit high, skip next line
+    sbi @2, @0                    ;set bit high
 .endmacro
 
 
-;used as function prologue
-.macro PUSH_TMP_REGS
-    push  tmp_reg2
-    push  tmp_reg1
-    push  tmp_reg0
+;used as interrupt prologue
+.macro ISR_PUSH_TMP_REGS
+    ;store temporary register to stack
+    push tmp_reg2
+    push tmp_reg1
+    push tmp_reg0
 
-    in    tmp_reg0, SREG            ;read status register
-    push  tmp_reg0                  ;save status register to stack
+    in tmp_reg0, SREG            ;read status register
+    push tmp_reg0                  ;save status register to stack
 .endmacro
 
 
-;used as function epilogue
-.macro POP_TMP_REGS
-    pop   tmp_reg0                  ;get previous flag register from stack
-    out   SREG, tmp_reg0            ;restore status register
+;used as interrupt epilogue
+.macro ISR_POP_TMP_REGS
+    pop tmp_reg0                  ;get previous flag register from stack
+    out REG, tmp_reg0            ;restore status register
     
     ;restore temporary registers from stack
-    pop   tmp_reg0
-    pop   tmp_reg1
-    pop   tmp_reg2
+    pop tmp_reg0
+    pop tmp_reg1
+    pop tmp_reg2
+.endmacro
+
+
+.macro SET_CLK_PRESCALER
+    ;sets Clock Division Factor to 1
+    ldi tmp_reg0, (1 << CLKPCE)
+    sts CLKPR, tmp_reg0
+    andi tmp_reg0, ~$FF
+    sts CLKPR, tmp_reg0
 .endmacro
