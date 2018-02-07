@@ -9,26 +9,40 @@
 ; F_CPU = 8 MHz
 .equ F_CPU = 8000000
 
+
 ; ============================================
 ;   PORTS AND PINS
 ; ============================================
-.equ THRESHOLD_LED = PINB3
+.equ THRESHOLD_LED = PINB7
 .equ DEBUG_LED = PINB6
 .equ SYS_RESET_PIN = PINB4
+
 
 ; ============================================
 ;   CONSTANTS
 ; ============================================
-.equ ADC_THRESHOLD = $94 ;used for testing whether ADC works
+.equ ADC_THRESHOLD = $95 ;used for testing whether ADC works
 
 ;LCD CONSTANTS
 .equ EN = PINB0
 .equ RW = PINB3
 .equ RS = PINB2
 .equ DATA_LINES = PORTD
-.equ CONTROL_LINES = PORTB
 .equ DATA_DIRECTION = DDRD
+.equ CONTROL_LINES = PORTB
 .equ CONTROL_DIRECTION = DDRB
+
+.equ FIRST_LINE_ADDRESS = 0x80
+.equ SECOND_LINE_ADDRESS = 0xC0
+.equ THIRD_LINE_ADDRESS = 0x94
+.equ FOURTH_LINE_ADDRESS = 0xD4
+
+.equ CLEAR_DISPLAY = 0x01
+.equ SET_4_BIT = 0x28
+.equ SET_8_BIT = 0x38
+.equ DISPLAY_ON_CURSOR_OFF = 0x0C
+.equ DISPLAY_ON_CURSOR_ON = 0x0E
+.equ DISPLAY_ON_CURSOR_BLINK = 0x0F
 
 
 ; ============================================
@@ -42,10 +56,10 @@
 .def tmp_reg0 = r16
 .def tmp_reg1 = r17
 .def tmp_reg2 = r18
-.def adc_reg_low = r19
-.def adc_reg_high = r20
-.def counter_reg0 = r24
-.def counter_reg1 = r25
+.def param_reg0 = r19
+.def param_reg1 = r20
+.def pointer_reg_low = r24
+.def pointer_reg_high = r25
 
 
 ; ============================================
@@ -116,3 +130,6 @@
     andi tmp_reg0, ~$FF
     sts CLKPR, tmp_reg0
 .endmacro
+
+
+.exit
