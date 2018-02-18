@@ -13,15 +13,22 @@
 ; ============================================
 ;   PORTS AND PINS
 ; ============================================
-.equ THRESHOLD_LED = PINB7
-.equ DEBUG_LED = PINB6
+.equ GREEN_LED = PINB6
+.equ YELLOW_LED = PINB7
 .equ SYS_RESET_PIN = PINB4
 
 
 ; ============================================
 ;   CONSTANTS
 ; ============================================
-.equ ADC_THRESHOLD = $95 ;used for testing whether ADC works
+
+;==============================================================================;
+; - EN (enable) control line informs the LCD, that data is being sent.
+;   Set to HIGH, wait required time, then set LOW to execute instruction.
+; - RS (register select), set LOW to treat data as command/special
+;   instruction, HIGH treats data as text.
+; - RW (read/write), LOW to write on LCD, HIGH to read LCD.
+;==============================================================================;
 
 ;LCD CONSTANTS
 .equ EN = PINB0
@@ -92,10 +99,10 @@
     .endif
 
     sbic @1, @0	                ;if bit clear, skip next line
-    cbi @2, @0                    ;set bit low
+    cbi @2, @0                  ;set bit low
 
     sbis @1, @0	                ;if bit high, skip next line
-    sbi @2, @0                    ;set bit high
+    sbi @2, @0                  ;set bit high
 .endmacro
 
 
@@ -107,14 +114,14 @@
     push tmp_reg0
 
     in tmp_reg0, SREG            ;read status register
-    push tmp_reg0                  ;save status register to stack
+    push tmp_reg0                ;save status register to stack
 .endmacro
 
 
 ;used as interrupt epilogue
 .macro ISR_POP_TMP_REGS
     pop tmp_reg0                  ;get previous flag register from stack
-    out REG, tmp_reg0            ;restore status register
+    out SREG, tmp_reg0            ;restore status register
     
     ;restore temporary registers from stack
     pop tmp_reg0
@@ -125,10 +132,10 @@
 
 .macro SET_CLK_PRESCALER
     ;sets Clock Division Factor to 1
-    ldi tmp_reg0, (1 << CLKPCE)
+    ldi tmp_reg0, (1 << CLKPCE) ;set enable bit
     sts CLKPR, tmp_reg0
     andi tmp_reg0, ~$FF
-    sts CLKPR, tmp_reg0
+    sts CLKPR, tmp_reg0 ;set division factor
 .endmacro
 
 

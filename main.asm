@@ -15,7 +15,7 @@ jmp PCINT0_vect         ; PCINT0
 reti nop                ; PCINT1
 reti nop                ; PCINT2
 reti nop                ; WDT
-jmp TIMER2_COMPA_vect   ; TIM2_COMPA
+jmp TIM2_COMPA2_vect    ; TIM2_COMPA
 reti nop                ; TIM2_COMPB
 reti nop                ; TIM2_OVF
 reti nop                ; TIM1_CAPT
@@ -42,22 +42,45 @@ reti nop                ; SPM_RDY
 reset: 
     INIT_STACK_POINTER
 
-    SET_CLK_PRESCALER
+    SET_CLK_PRESCALER ;using 8 MHz clock speed
 
-    ;initialize 8-bit timer - to be used later
-init_timer2:
-    ldi tmp_reg0, (1 << WGM22) | (1 << CS22) | (1 << CS21) | (1 << CS20)
-    sts TCCR2B, tmp_reg0
+init_timer2: ;8-bit timer
+    ; timer_ticks = CPU frequency / timer prescaler
+    ;             = 8 MHz / 1024 clk
+    ;             = 7812.5 timer ticks (=> 1000 ms)
+    ;
+    ; converting to milliseconds:
+    ; duration_as_hex = timer_ticks * <time to sleep in milliseconds>
+    ; NOTE: $00 is one count!
     
-    ldi tmp_reg0, $FA ;250
+    ;CTC mode
+    ldi tmp_reg0, (1 << WGM21)
+    sts TCCR2A, tmp_reg0
+
+    ;set timer prescaler to 1024
+    ldi tmp_reg0, (1 << CS22) | (1 << CS21) | (1 << CS20)
+    sts TCCR2B, tmp_reg0
+
+    ;7812.5 ticks / (1000ms / target_delay) = target_delay_in_ticks
+    ;                                       => convert to hexadecimal - 1,
+    ;                                          because 0x00 is one count
+    ;7812.5 ticks / (1000ms / 10ms) = 78 ticks
+    ;                               => $4E -1
+    ;                               = $4D
+    ldi tmp_reg0, $4D
     sts OCR2A, tmp_reg0
 
+    /* using TIMER2_COMPA interrupt */
     ldi tmp_reg0, (1 << OCIE2A)
     sts TIMSK2, tmp_reg0
-    
-    ;initialize ADC
-    ldi tmp_reg0, (1 << REFS0);
+
+init_adc:
+    ;using separate voltage source in ADC
+    ldi tmp_reg0, (1 << REFS0)
     sts ADMUX, tmp_reg0
+
+    ;set division factor between system clock and the ADC to 64, so:
+    ;8MHz/64 = 125kHz
     ldi tmp_reg0, (1 << ADEN) | (1 << ADPS2) | (1 << ADPS1)
     sts ADCSRA, tmp_reg0
 
@@ -67,22 +90,27 @@ init_sleep:
     sts SMCR, tmp_reg0
 
 init_ports:
-	ldi tmp_reg0, (1 << THRESHOLD_LED) | (1 << DEBUG_LED)
+	ldi tmp_reg0, (1 << YELLOW_LED) | (1 << GREEN_LED)
 	out DDRB, tmp_reg0
 
 init_PCINT0_vect:
+    ;set SYS_RESET_PIN as input and enable it
     in tmp_reg0, DDRB
     andi tmp_reg0, ~(1 << SYS_RESET_PIN)
     out DDRB, tmp_reg0
     ldi tmp_reg0, (1 << SYS_RESET_PIN)
     out PORTB, tmp_reg0
 
+init_interrupts:
+    ;change on PCINT[7:0] fires an interrupt
     ldi tmp_reg0, (1 << PCIE0)
     sts PCICR, tmp_reg0
+    ;enable PCINT[7:0] pins
     ldi tmp_reg0, (1 << PCINT4)
     sts PCMSK0, tmp_reg0
 
     rcall lcd_init
+
     sleep
 
     sei
@@ -92,20 +120,9 @@ init_PCINT0_vect:
 ; ============================================
 main:
     rcall adc_read
-    
-;handling the ADC result
-    ldi tmp_reg0, ADC_THRESHOLD
-;if ADCL < THRESHOLD
-    cp pointer_reg_low, tmp_reg0
-    brlo led_off
-;else
-    sbi PORTB, THRESHOLD_LED      ;set bit high
-    sbis PORTB, THRESHOLD_LED     ;always skip next instruction
-led_off:
-    cbi PORTB, THRESHOLD_LED      ;set bit low
-    
     rcall lcd_send_character
     sleep ;10 ms
+    TOGGLE_BIT YELLOW_LED, PINB, PORTB
 	rjmp main
 
 
@@ -134,10 +151,10 @@ led_off:
 ; => 79 + nop = 80 cycles = 10 us
 ;
 delay_10_us:                                ;3 cycles
-    ldi tmp_reg0, COUNTER_DELAY_10_US     ;1 cycle
+    ldi tmp_reg0, COUNTER_DELAY_10_US       ;1 cycle
 delay_10_us_loop:
-    dec tmp_reg0                          ;1 cycle
-    brne delay_10_us_loop                  ;3 * 23 + 1
+    dec tmp_reg0                            ;1 cycle
+    brne delay_10_us_loop                   ;3 * 23 + 1
     nop                                     ;1 cycle
     ret                                     ;4 cycles
     
@@ -146,21 +163,23 @@ delay_10_us_loop:
 ;   SUBROUTINE: adc_read
 ; ============================================
 adc_read:
-    ldi tmp_reg0, (1 << MUX0)       ;channel 0
-    lds tmp_reg1, ADMUX
-    or tmp_reg0, tmp_reg1
+    ;using channel 0
+    lds tmp_reg0, ADMUX
+    ori tmp_reg0, (1 << MUX0)
     sts ADMUX, tmp_reg0
 
-    ldi tmp_reg0, (1 << ADSC)       ;start conversion
-    lds tmp_reg1, ADCSRA
-    or tmp_reg0, tmp_reg1
+    ;start conversion
+    lds tmp_reg0, ADCSRA
+    ori tmp_reg0, (1 << ADSC)
     sts ADCSRA, tmp_reg0
 
 wait_until_conversion_done:
+    ;ADSC bit is turned off when conversion is done
     lds tmp_reg0, ADCSRA
     cpi tmp_reg0, ADSC
     breq wait_until_conversion_done
-    
+
+    ;load ADC result to 16-bit register
     lds pointer_reg_low, ADCL
     lds pointer_reg_high, ADCH
     ret
@@ -171,14 +190,19 @@ wait_until_conversion_done:
 ; ============================================
 lcd_execute_instruction:
     push tmp_reg0
+
+    ;set EN HIGH
     in tmp_reg0, CONTROL_LINES
     ori tmp_reg0, (1  << EN)
     out CONTROL_LINES, tmp_reg0
+    ;wait for 2 cycles
     nop
     nop
+    ;set EN LOW to execute given instruction
     in tmp_reg0, CONTROL_LINES
     andi tmp_reg0, ~(1 << EN)
     out CONTROL_LINES, tmp_reg0
+
     pop tmp_reg0
     ret
 
@@ -188,10 +212,12 @@ lcd_execute_instruction:
 ; ============================================
 lcd_wait_if_busy:
     push tmp_reg0
-
+    
+    ;read from data port
     andi tmp_reg0, ~$FF
     out DATA_DIRECTION, tmp_reg0
 
+    ;command mode, read mode
     in tmp_reg0, CONTROL_LINES
     andi tmp_reg0, ~(1 << RS)
     ori tmp_reg0, (1 << RW)
@@ -203,8 +229,10 @@ keep_waiting:
     cpi tmp_reg0, FIRST_LINE_ADDRESS
     brsh keep_waiting
     
+    ;write to data port
     ori tmp_reg0, $FF
     out DATA_DIRECTION, tmp_reg0
+
     ;50 us delay done efficiently
     rcall delay_10_us
     rcall delay_10_us
@@ -221,23 +249,24 @@ keep_waiting:
 ; ============================================
 lcd_send_command:
     push tmp_reg0
-    push tmp_reg1
+
     rcall lcd_wait_if_busy
     
     ;overwrite whole register
     out DATA_LINES, param_reg0 ;routine parameter
 
-    in tmp_reg0, CONTROL_LINES ;saves old values first
+    ;write mode, command mode
+    in tmp_reg0, CONTROL_LINES
     andi tmp_reg0, ~((1 << RW) | (1 << RS))
     out CONTROL_LINES, tmp_reg0
 
+    ;send command here
     rcall lcd_execute_instruction
 
-    ;clear datalines
+    ;clear data lines
     andi tmp_reg0, ~$FF
     out DATA_LINES, tmp_reg0
 
-    pop tmp_reg1
     pop tmp_reg0
     ret
     
@@ -247,21 +276,29 @@ lcd_send_command:
 ; ============================================
 lcd_send_character:
     push tmp_reg0
+
     rcall lcd_wait_if_busy
     
+    ;load value to datalines, so it can be sent forward
     ldi tmp_reg0, 'A'
     out DATA_LINES, tmp_reg0
     
+    ;read mode, text mode
     in tmp_reg0, CONTROL_LINES
     andi tmp_reg0, ~(1 << RW)
     ori tmp_reg0, (1 << RS)
     out CONTROL_LINES, tmp_reg0
 
+    ;send character here
     rcall lcd_execute_instruction
 
+     ;clear data lines
     andi tmp_reg0, ~$FF
     out DATA_LINES, tmp_reg0
+
+    ;delay needed after sending character
     rcall delay_10_us
+
     pop tmp_reg0
     ret
 
@@ -272,9 +309,11 @@ lcd_send_character:
 lcd_init:
     push tmp_reg0
     
-    in param_reg0, CONTROL_DIRECTION
-    ori param_reg0, (1 << EN) | (1 << RW) | (1 << RS)
-    out CONTROL_DIRECTION, param_reg0
+    ;initialize pins for LCD
+    ;modify instead of overwriting to avoid problems in the future
+    in tmp_reg0, CONTROL_DIRECTION
+    ori tmp_reg0, (1 << EN) | (1 << RW) | (1 << RS)
+    out CONTROL_DIRECTION, tmp_reg0
     sleep
 
     ldi param_reg0, SET_8_BIT
@@ -303,10 +342,10 @@ PCINT0_vect:
     nop ;debug message: PCINT0
     reti
 
-    
-;used for waking up the processor
-TIMER2_COMPA_vect:
-    TOGGLE_BIT DEBUG_LED, PINB, PORTB
+
+TIM2_COMPA2_vect:
+    TOGGLE_BIT GREEN_LED, PINB, PORTB
+    nop ;used to wake up from sleep
     reti
 
 
