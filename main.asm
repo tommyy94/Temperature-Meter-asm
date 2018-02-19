@@ -1,104 +1,126 @@
+;******************************************************************************;
+;   HEADER FILES
+;******************************************************************************;
 .nolist
 .include "main.inc"
 .list
 
 
-; ============================================
+;******************************************************************************;
 ;   RESET AND INT VECTORS
-; ============================================
+;******************************************************************************;
 .cseg
-.org $0000
-jmp reset           ; Reset
-reti nop            ; INT0
-reti nop            ; INT1
-jmp  PCINT0_vect    ; PCINT0
-reti nop            ; PCINT1
-reti nop            ; PCINT2
-reti nop            ; WDT
-reti nop            ; TIM2_COMPA
-reti nop            ; TIM2_COMPB
-reti nop            ; TIM2_OVF
-reti nop            ; TIM1_CAPT
-reti nop            ; TIM1_COMPA
-reti nop            ; TIM1_COMPB
-reti nop            ; TIM1_OVF
-reti nop            ; TIM0_COMPA
-reti nop            ; TIM0_COMPB
-reti nop            ; TIM0_OVF
-reti nop            ; SPI_STC
-reti nop            ; USART_RXC
-reti nop            ; USART_UDRE
-reti nop            ; USART_TXC
-reti nop            ; ADC
-reti nop            ; EE_RDY
-reti nop            ; ANA_COMP
-reti nop            ; TWI
-reti nop            ; SPM_RDY
+.org $0000 ;interrupts located at start of the flash
+
+jmp reset               ; Reset
+reti nop                ; INT0
+reti nop                ; INT1
+jmp PCINT0_vect         ; PCINT0
+reti nop                ; PCINT1
+reti nop                ; PCINT2
+reti nop                ; WDT
+jmp TIM2_COMPA2_vect    ; TIM2_COMPA
+reti nop                ; TIM2_COMPB
+reti nop                ; TIM2_OVF
+reti nop                ; TIM1_CAPT
+reti nop                ; TIM1_COMPA
+reti nop                ; TIM1_COMPB
+reti nop                ; TIM1_OVF
+reti nop                ; TIM0_COMPA
+reti nop                ; TIM0_COMPB
+reti nop                ; TIM0_OVF
+reti nop                ; SPI_STC
+reti nop                ; USART_RXC
+reti nop                ; USART_UDRE
+reti nop                ; USART_TXC
+reti nop                ; ADC
+reti nop                ; EE_RDY
+reti nop                ; ANA_COMP
+reti nop                ; TWI
+reti nop                ; SPM_RDY
 
 
-; ============================================
+;******************************************************************************;
 ;   INITIALIZE
-; ============================================
+;******************************************************************************;
 reset: 
     INIT_STACK_POINTER
 
-    ;initialize 8-bit timer - to be used later
-init_timer2:
-	ldi   tmp_reg0, (1 << WGM22) | (1 << CS22) | (1 << CS21) | (1 << CS20)
-	sts   TCCR2B, tmp_reg0
-    
-    ldi   tmp_reg0, $FA ;250
-    sts   OCR2A, tmp_reg0
+    SET_CLK_PRESCALER ;using 8 MHz clock speed
 
-	ldi   tmp_reg0, (1 << OCIE2A)
-	sts   TIMSK2, tmp_reg0
+init_timer2: ;8-bit timer
+    ; timer_ticks = CPU frequency / timer prescaler
+    ;             = 8 MHz / 1024 clk
+    ;             = 7812.5 timer ticks (=> 1000 ms)
+    ;
+    ; converting to milliseconds:
+    ; duration_as_hex = timer_ticks * <time to sleep in milliseconds>
+    ; NOTE: $00 is one count!
     
-    ;initialize ADC
-    ldi   tmp_reg0, (1 << REFS0);
-    sts   ADMUX, tmp_reg0
-    ldi   tmp_reg0, (1 << ADEN) | (1 << ADPS2) | (1 << ADPS1)
-    sts   ADCSRA, tmp_reg0
+    ;CTC mode
+    ldi tmp_reg0, (1 << WGM21)
+    sts TCCR2A, tmp_reg0
 
-init_ports:
-	ldi    tmp_reg0, (1 << THRESHOLD_LED) | (1 << DEBUG_LED)
-	out    DDRB, tmp_reg0
+    ;set timer prescaler to 1024
+    ldi tmp_reg0, (1 << CS22) | (1 << CS21) | (1 << CS20)
+    sts TCCR2B, tmp_reg0
+
+    ;7812.5 ticks / (1000ms / target_delay) = target_delay_in_ticks
+    ;                                       => convert to hexadecimal - 1,
+    ;                                          because 0x00 is one count
+    ;7812.5 ticks / (1000ms / 10ms) = 78 ticks
+    ;                               => $4E -1
+    ;                               = $4D
+    ldi tmp_reg0, $4D
+    sts OCR2A, tmp_reg0
+
+    /* using TIMER2_COMPA interrupt */
+    ldi tmp_reg0, (1 << OCIE2A)
+    sts TIMSK2, tmp_reg0
+
+    INIT_ADC
+
+init_sleep:
+    ;using Power-save Mode
+    ldi tmp_reg0, (1 << SM1) | (1 << SM0)
+    out SMCR, tmp_reg0
 
 init_PCINT0_vect:
-    ldi   tmp_reg0, ~(1 << SYS_RESET_PIN)
-    sts   DDRB, tmp_reg0
-    ldi   tmp_reg0, (1 << SYS_RESET_PIN)
-    sts   PORTB, tmp_reg0
+    ;set SYS_RESET_PIN as input and enable it
+    in tmp_reg0, DDRB
+    andi tmp_reg0, ~(1 << SYS_RESET_PIN)
+    out DDRB, tmp_reg0
+    ldi tmp_reg0, (1 << SYS_RESET_PIN)
+    out PORTB, tmp_reg0
 
-    ldi   tmp_reg0, (1 << PCIE0)
-    sts   PCICR, tmp_reg0
-    ldi   tmp_reg0, (1 << PCINT4)
-    sts   PCMSK0, tmp_reg0
+init_interrupts:
+    ;change on PCINT[7:0] fires an interrupt
+    ldi tmp_reg0, (1 << PCIE0)
+    sts PCICR, tmp_reg0
+    ;enable PCINT[7:0] pins
+    ldi tmp_reg0, (1 << PCINT4)
+    sts PCMSK0, tmp_reg0
 
-    sei
+    rcall lcd_init
+    
 
-; ============================================
+;******************************************************************************;
 ;    MAIN LOOP
-; ============================================
+;******************************************************************************;
 main:
     rcall adc_read
+    rcall lcd_send_character
     
-    ldi   tmp_reg0, ADC_THRESHOLD
-;if ADCL < THRESHOLD
-    cp     adc_reg_low, tmp_reg0
-    brlo  led_off
-;else
-    sbi   PORTB, THRESHOLD_LED      ;set bit high
-    sbis  PORTB,  THRESHOLD_LED     ;always skip next instruction
-led_off:
-    cbi   PORTB, THRESHOLD_LED      ;set bit low
+    rcall sleep_10ms
 
-    rcall delay_10_us
-	rjmp  main
+	rjmp main
 
-
-; ============================================
-;   SUBROUTINE: delay_10_us
-; ============================================
+    
+;******************************************************************************;
+; SUBROUTINE: delay_10_us
+; Registers used: tmp_reg0
+; Description: 10 microsecond delay loop.
+;******************************************************************************;
 ;
 ; T = 1/f = 1 / 8 * 10^6 Hz = 0.1250 us/cycle
 ;
@@ -121,51 +143,63 @@ led_off:
 ; => 79 + nop = 80 cycles = 10 us
 ;
 delay_10_us:                                ;3 cycles
-    ldi   tmp_reg0, COUNTER_DELAY_10_US     ;1 cycle
+    ldi tmp_reg0, COUNTER_DELAY_10_US       ;1 cycle
 delay_10_us_loop:
-    dec   tmp_reg0                          ;1 cycle
-    brne  delay_10_us_loop                  ;3 * 23 + 1
+    dec tmp_reg0                            ;1 cycle
+    brne delay_10_us_loop                   ;3 * 23 + 1
     nop                                     ;1 cycle
     ret                                     ;4 cycles
+
     
-
-; ============================================
-;   SUBROUTINE: adc_read
-; ============================================
-adc_read:
-    ldi  tmp_reg0, (1 << MUX0)       ;channel 0
-    lds  tmp_reg1, ADMUX
-    or   tmp_reg0, tmp_reg1
-    sts  ADMUX, tmp_reg0
-
-    ldi  tmp_reg0, (1 << ADSC)       ;start conversion
-    lds  tmp_reg1, ADCSRA
-    or   tmp_reg0, tmp_reg1
-    sts  ADCSRA, tmp_reg0
-
-wait_until_conversion_done:
-    lds   tmp_reg0, ADCSRA
-    cpi   tmp_reg0, ADSC
-    breq  wait_until_conversion_done
+;******************************************************************************;
+; SUBROUTINE: sleep_10ms
+; Registers used: tmp_reg0
+; Description: Sleeps for 10 ms. Writes Sleep Enable bit to logic one and sleep 
+; until interrupt occurs, then clears Sleep Enable bit.
+;******************************************************************************;
+sleep_10ms:
+    push tmp_reg0
     
-    lds  adc_reg_low, ADCL
-    lds  adc_reg_high, ADCH
+    sei ;enable interrupts so we can wake up
+
+    ;enable sleep
+    in tmp_reg0, SMCR
+    ori tmp_reg0, (1 << SE)
+    out SMCR, tmp_reg0
+
+    sleep
+
+    ;disable sleep
+    andi tmp_reg0, ~(1 << SE)
+    out SMCR, tmp_reg0
+    
+    pop tmp_reg0
     ret
 
-
-; ============================================
-;   INTERRUPT SERVICES
-; ============================================
-;To be used for watchdog system reset
-PCINT0_vect:
-    in    tmp_reg0, SREG            ;read status register
-    push  tmp_reg0                  ;save status register to stack
-    ;check if SYS_RESET_PIN is pressed
-    sbic  PINB, SYS_RESET_PIN   ;falling edge
-    nop     ;debug message: PCINT0
     
-    pop   tmp_reg0                  ;get previous flag register from stack
-    out   SREG, tmp_reg0            ;restore status register
+;******************************************************************************;
+;   INTERRUPT SERVICE ROUTINES
+;******************************************************************************;
+
+;******************************************************************************;
+; PCINT0_vect
+; Registers used: none
+; Description: To be used for watchdog system reset.
+;******************************************************************************;
+PCINT0_vect:
+    ;check if SYS_RESET_PIN is pressed
+    sbic PINB, SYS_RESET_PIN       ;falling edge
+    nop ;debug message: PCINT0
+    reti
+
+    
+;******************************************************************************;
+; TIM2_COMPA2_vect
+; Registers used: none
+; Description: Used to wake up the processor.
+;******************************************************************************;
+TIM2_COMPA2_vect:
+    nop ;used to wake up from sleep
     reti
 
 
