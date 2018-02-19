@@ -2,7 +2,6 @@
 ;   HEADER FILES
 ;******************************************************************************;
 .nolist
-.include "m328pdef.inc"
 .include "lcd.asm"
 .list
 

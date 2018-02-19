@@ -5,6 +5,7 @@
 .include "m328pdef.inc"
 .include "lcd.inc"
 .include "adc.inc"
+.include "delay.inc"
 .list
 
 
@@ -28,7 +29,6 @@
 ;******************************************************************************;
 ;   FIXED + DERIVED CONSTANTS
 ;******************************************************************************;
-.equ COUNTER_DELAY_10_US = 24
 
 
 ;******************************************************************************;
@@ -65,12 +65,13 @@
     out SPL,  tmp_reg0
 .endmacro
 
-    
+
 ;******************************************************************************;
 ; MACRO: ISR_PUSH_TMP_REGS
 ; Registers used: tmp_reg0
 ; Description: Used as interrupt prologue. Pushes temporary registers and status
 ; register to stack in case interrupt needs to use them.
+; NOTES: Always pair with macro ISR_POP_TMP_REGS.
 ;******************************************************************************
 .macro ISR_PUSH_TMP_REGS
     ;store temporary register to stack
@@ -88,8 +89,8 @@
 ; Registers used: tmp_reg0
 ; Description: Used as interrupt epilogue. Pops temporary registers and status
 ; register from the stack.
+; NOTES: Always pair with macro ISR_PUSH_TMP_REGS.
 ;******************************************************************************
-;used as interrupt epilogue
 .macro ISR_POP_TMP_REGS
     pop tmp_reg0                  ;get previous flag register from stack
     out SREG, tmp_reg0            ;restore status register
@@ -112,6 +113,35 @@
     sts CLKPR, tmp_reg0
     andi tmp_reg0, ~$FF
     sts CLKPR, tmp_reg0 ;set division factor
+.endmacro
+
+
+;******************************************************************************;
+; MACRO: INIT_SYS_RESET_PIN
+; Registers used: tmp_reg0
+; Description: Set SYS_RESET_PIN as input and enable it.
+;******************************************************************************
+.macro INIT_SYS_RESET_PIN
+    in tmp_reg0, DDRB
+    andi tmp_reg0, ~(1 << SYS_RESET_PIN)
+    out DDRB, tmp_reg0
+    ldi tmp_reg0, (1 << SYS_RESET_PIN)
+    out PORTB, tmp_reg0
+.endmacro
+
+
+;******************************************************************************;
+; MACRO: INIT_PCINT0_VECT
+; Registers used: tmp_reg0
+; Description: Set SYS_RESET_PIN as input and enable it.
+;******************************************************************************
+.macro INIT_PCINT0_VECT
+    ;enable interrupts on PCINT[7:0], in this case it's PORTB
+    ldi tmp_reg0, (1 << PCIE0)
+    sts PCICR, tmp_reg0
+    ;enable interrupt on PCINT4, in this case it's SYS_RESET_PIN/PINB4
+    ldi tmp_reg0, (1 << PCINT4)
+    sts PCMSK0, tmp_reg0
 .endmacro
 
 

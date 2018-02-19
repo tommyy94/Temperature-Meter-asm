@@ -10,7 +10,7 @@
 ;******************************************************************************;
 ; SUBROUTINE: lcd_execute_instruction
 ; Registers used: tmp_reg0
-; Description: Sets EN bit HIGH, then after few cycles LOW to execute the given
+; Description: Sets EN bit HIGH, then after 2 cycles LOW to execute the given
 ; instruction.
 ;******************************************************************************;
 lcd_execute_instruction:
@@ -34,7 +34,8 @@ lcd_execute_instruction:
 ;******************************************************************************;
 ; SUBROUTINE: lcd_wait_if_busy
 ; Registers used: tmp_reg0
-; Description:
+; Description: Sets command and read mode, data direction to reading.
+; Stays in loop until LCD is available, sets data direction to writing.
 ;******************************************************************************;
 lcd_wait_if_busy:
     push tmp_reg0
@@ -73,7 +74,8 @@ keep_waiting:
 ;******************************************************************************;
 ; SUBROUTINE: lcd_send_command
 ; Registers used: tmp_reg0
-; Description:
+; Description: Sends command to data lines, sets write and command mode, sends
+; the command and clears the data lines.
 ;******************************************************************************;
 lcd_send_command:
     push tmp_reg0
@@ -102,7 +104,8 @@ lcd_send_command:
 ;******************************************************************************;
 ; SUBROUTINE: lcd_send_character
 ; Registers used: tmp_reg0
-; Description:
+; Description: Sends character to be sent to data lines, sets read and text
+; mode, then sends it and clears data lines.
 ;******************************************************************************;
 lcd_send_character:
     push tmp_reg0
@@ -136,13 +139,14 @@ lcd_send_character:
 ;******************************************************************************;
 ; SUBROUTINE: lcd_init
 ; Registers used: tmp_reg0
-; Description:
+; Description: Sets enable, register select and read/write bits in
+; CONTROL_DIRECTION port. Also sets the LCD to use 8-bit mode, cursor mode and
+; clears the display.
 ;******************************************************************************;
 lcd_init:
-    push tmp_reg0
-    
     ;initialize pins for LCD
-    ;modify instead of overwriting to avoid problems in the future
+    ;modify instead of overwriting, because something else
+    ;might use CONTROL_DIRECTION port too
     in tmp_reg0, CONTROL_DIRECTION
     ori tmp_reg0, (1 << EN) | (1 << RW) | (1 << RS)
     out CONTROL_DIRECTION, tmp_reg0
@@ -160,7 +164,6 @@ lcd_init:
     rcall lcd_send_command
     rcall sleep_10ms
     
-    pop tmp_reg0
     ret
 
     
