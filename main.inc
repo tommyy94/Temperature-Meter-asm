@@ -1,65 +1,39 @@
+;******************************************************************************;
+;   HEADER FILES
+;******************************************************************************;
 .nolist
 .include "m328pdef.inc"
+.include "lcd.inc"
+.include "adc.inc"
 .list
 
 
-; ============================================
+;******************************************************************************;
 ;   HARDWARE INFORMATION
-; ============================================
-; F_CPU = 8 MHz
-.equ F_CPU = 8000000
+;******************************************************************************;
+;ATmega328P microcontroller
 
 
-; ============================================
+;******************************************************************************;
 ;   PORTS AND PINS
-; ============================================
-.equ GREEN_LED = PINB6
-.equ YELLOW_LED = PINB7
+;******************************************************************************;
 .equ SYS_RESET_PIN = PINB4
 
 
-; ============================================
+;******************************************************************************;
 ;   CONSTANTS
-; ============================================
-
-;==============================================================================;
-; - EN (enable) control line informs the LCD, that data is being sent.
-;   Set to HIGH, wait required time, then set LOW to execute instruction.
-; - RS (register select), set LOW to treat data as command/special
-;   instruction, HIGH treats data as text.
-; - RW (read/write), LOW to write on LCD, HIGH to read LCD.
-;==============================================================================;
-
-;LCD CONSTANTS
-.equ EN = PINB0
-.equ RW = PINB3
-.equ RS = PINB2
-.equ DATA_LINES = PORTD
-.equ DATA_DIRECTION = DDRD
-.equ CONTROL_LINES = PORTB
-.equ CONTROL_DIRECTION = DDRB
-
-.equ FIRST_LINE_ADDRESS = 0x80
-.equ SECOND_LINE_ADDRESS = 0xC0
-.equ THIRD_LINE_ADDRESS = 0x94
-.equ FOURTH_LINE_ADDRESS = 0xD4
-
-.equ CLEAR_DISPLAY = 0x01
-.equ SET_4_BIT = 0x28
-.equ SET_8_BIT = 0x38
-.equ DISPLAY_ON_CURSOR_OFF = 0x0C
-.equ DISPLAY_ON_CURSOR_ON = 0x0E
-.equ DISPLAY_ON_CURSOR_BLINK = 0x0F
+;******************************************************************************;
 
 
-; ============================================
+;******************************************************************************;
 ;   FIXED + DERIVED CONSTANTS
-; ============================================
+;******************************************************************************;
 .equ COUNTER_DELAY_10_US = 24
 
-; ============================================
+
+;******************************************************************************;
 ;   REGISTER DEFINITIONS
-; ============================================
+;******************************************************************************;
 .def tmp_reg0 = r16
 .def tmp_reg1 = r17
 .def tmp_reg2 = r18
@@ -69,16 +43,21 @@
 .def pointer_reg_high = r25
 
 
-; ============================================
+;******************************************************************************;
 ;   SRAM DEFINITIONS
-; ============================================
+;******************************************************************************;
 
 
-; ============================================
+;******************************************************************************;
 ;   MACROS
-; ============================================
+;******************************************************************************;
 .listmac ;list macros in .lst file
 
+;******************************************************************************;
+; MACRO: INIT_STACK_POINTER
+; Registers used: tmp_reg0
+; Description: Initializes the stack pointer.
+;******************************************************************************
 .macro INIT_STACK_POINTER
     ldi tmp_reg0, HIGH(RAMEND)
     out SPH, tmp_reg0
@@ -86,27 +65,13 @@
     out SPL,  tmp_reg0
 .endmacro
 
-
-;toggles selected bit, mainly for debugging purposes
-.macro TOGGLE_BIT ;@bit, @pin, @port
-    ;error checking
-    .if (@0 < 0 || @0 > 7)
-        .error "Invalid bit (valid bits are 0-7"
-    .elif !(@1 == PINB || (@1 == PINC) || (@1 == PIND))
-        .error "Invalid pin (valid pins: PINB, PINC, PIND)"
-    .elif !(@2 == PORTB || (@2 == PORTC) || (@2 == PORTD))
-        .error "Invalid port (valid ports: PORTB, PORTC, PORTD)"
-    .endif
-
-    sbic @1, @0	                ;if bit clear, skip next line
-    cbi @2, @0                  ;set bit low
-
-    sbis @1, @0	                ;if bit high, skip next line
-    sbi @2, @0                  ;set bit high
-.endmacro
-
-
-;used as interrupt prologue
+    
+;******************************************************************************;
+; MACRO: ISR_PUSH_TMP_REGS
+; Registers used: tmp_reg0
+; Description: Used as interrupt prologue. Pushes temporary registers and status
+; register to stack in case interrupt needs to use them.
+;******************************************************************************
 .macro ISR_PUSH_TMP_REGS
     ;store temporary register to stack
     push tmp_reg2
@@ -118,6 +83,12 @@
 .endmacro
 
 
+;******************************************************************************;
+; MACRO: ISR_POP_TMP_REGS
+; Registers used: tmp_reg0
+; Description: Used as interrupt epilogue. Pops temporary registers and status
+; register from the stack.
+;******************************************************************************
 ;used as interrupt epilogue
 .macro ISR_POP_TMP_REGS
     pop tmp_reg0                  ;get previous flag register from stack
@@ -130,9 +101,14 @@
 .endmacro
 
 
+;******************************************************************************;
+; MACRO: SET_CLK_PRESCALER
+; Registers used: tmp_reg0
+; Description: Sets internal system clock to 8 MHz.
+;******************************************************************************
 .macro SET_CLK_PRESCALER
     ;sets Clock Division Factor to 1
-    ldi tmp_reg0, (1 << CLKPCE) ;set enable bit
+    ldi tmp_reg0, (1 << CLKPCE) ;set enable bit, cleared after 4 clock cycles
     sts CLKPR, tmp_reg0
     andi tmp_reg0, ~$FF
     sts CLKPR, tmp_reg0 ;set division factor
