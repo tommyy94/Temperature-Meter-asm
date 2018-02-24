@@ -6,6 +6,7 @@
 .include "lcd.inc"
 .include "adc.inc"
 .include "delay.inc"
+.include "data_handling.inc"
 .list
 
 
@@ -37,8 +38,11 @@
 .def tmp_reg0 = r16
 .def tmp_reg1 = r17
 .def tmp_reg2 = r18
-.def param_reg0 = r19
-.def param_reg1 = r20
+.def tmp_reg3 = r19
+.def param_reg0 = r20
+.def param_reg1 = r21
+.def param_reg2 = r22
+.def param_reg3 = r23
 .def pointer_reg_low = r24
 .def pointer_reg_high = r25
 

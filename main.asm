@@ -63,7 +63,11 @@ reset:
 ;******************************************************************************;
 main:
     rcall adc_read
-    rcall lcd_send_character
+
+    ;load parameters for subroutine
+    ldi param_reg1, FIRST_COLUMN
+    ldi param_reg2, FIRST_ROW_POS
+    rcall lcd_send_string
     
     rcall sleep_10ms
 	rjmp main
