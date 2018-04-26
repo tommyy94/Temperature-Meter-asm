@@ -2,13 +2,12 @@
 ;   HEADER FILES
 ;******************************************************************************;
 .nolist
-.include "adc.asm"
+.include "data_handling.asm"
 .list
 
 ;******************************************************************************;
 ;   HARDWARE INFORMATION
 ;******************************************************************************;
-;TMP36 temperature sensor
 
 
 ;******************************************************************************;
@@ -19,6 +18,8 @@
 ;******************************************************************************;
 ;   CONSTANTS
 ;******************************************************************************;
+.equ MAX_STRING_SIZE = 16
+.equ DEGREE_SIGN = $B2
 
 
 ;******************************************************************************;
@@ -34,6 +35,11 @@
 ;******************************************************************************;
 ;   SRAM DEFINITIONS
 ;******************************************************************************;
+.dseg
+.org $0100
+string_to_send:
+    .byte MAX_STRING_SIZE ;reserve space to hold data
+.cseg
 
 
 ;******************************************************************************;
@@ -41,21 +47,25 @@
 ;******************************************************************************;
 .listmac ;list macros in .lst file
 
-;******************************************************************************;
-; MACRO: INIT_ADC
-; Registers used: r16
-; Description: Initializes the ADC. Separate voltage reference is used and ADC
-; resolution is 125 kHz.
-;******************************************************************************
-.macro INIT_ADC
-    ;using separate voltage source in ADC
-    ldi r16, (1 << REFS0)
-    sts ADMUX, r16
 
-    ;set division factor between system clock and the ADC to 64, so:
-    ;8MHz/64 = 125kHz
-    ldi r16, (1 << ADEN) | (1 << ADPS2) | (1 << ADPS1)
-    sts ADCSRA, r16
+;******************************************************************************;
+; MACRO: CELSIUS_FORMULA
+; Registers used: r16, r17, r18, r19
+; Description: ADC reading => celsius value, result in r17:r16
+; formula: celsius = (ADC * 330 * 10 / 1024) - 33
+;******************************************************************************
+.macro CELSIUS_FORMULA
+    ldi r19, HIGH(330)
+    ldi r18, LOW(330)
+    rcall mpy16u
+
+    movw r16, r18   ;prepare for division
+    ldi r19, HIGH(1024)
+    ldi r18, LOW(1024)
+    rcall div16u
+    
+    subi r16, 33    ;result is always 8-bit, so only subtract from 1 register
+    movw r18, r16   ;result back to param regpair
 .endmacro
 
 

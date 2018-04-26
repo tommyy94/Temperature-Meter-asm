@@ -2,13 +2,13 @@
 ;   HEADER FILES
 ;******************************************************************************;
 .nolist
-.include "adc.asm"
+.include "delay.asm"
 .list
 
 ;******************************************************************************;
 ;   HARDWARE INFORMATION
 ;******************************************************************************;
-;TMP36 temperature sensor
+;8 MHz system clock speed
 
 
 ;******************************************************************************;
@@ -24,6 +24,7 @@
 ;******************************************************************************;
 ;   FIXED + DERIVED CONSTANTS
 ;******************************************************************************;
+.equ COUNTER_DELAY_10_US = 24
 
 
 ;******************************************************************************;
@@ -42,20 +43,50 @@
 .listmac ;list macros in .lst file
 
 ;******************************************************************************;
-; MACRO: INIT_ADC
+; MACRO: INIT_TIMER2
 ; Registers used: r16
-; Description: Initializes the ADC. Separate voltage reference is used and ADC
-; resolution is 125 kHz.
+; Description: Initializes timer2 (8-bit), 10 ms CTC mode.
 ;******************************************************************************
-.macro INIT_ADC
-    ;using separate voltage source in ADC
-    ldi r16, (1 << REFS0)
-    sts ADMUX, r16
+.macro INIT_TIMER2
+    ; timer_ticks = CPU frequency / timer prescaler
+    ;             = 8 MHz / 1024 clk
+    ;             = 7812.5 timer ticks (=> 1000 ms)
+    ;
+    ; converting to milliseconds:
+    ; duration_as_hex = timer_ticks * <time to sleep in milliseconds>
+    ; NOTE: $00 is one count!
+    
+    ;CTC mode
+    ldi r16, (1 << WGM21)
+    sts TCCR2A, r16
 
-    ;set division factor between system clock and the ADC to 64, so:
-    ;8MHz/64 = 125kHz
-    ldi r16, (1 << ADEN) | (1 << ADPS2) | (1 << ADPS1)
-    sts ADCSRA, r16
+    ;set timer prescaler to 1024
+    ldi r16, (1 << CS22) | (1 << CS21) | (1 << CS20)
+    sts TCCR2B, r16
+
+    ;7812.5 ticks / (1000ms / target_delay) = target_delay_in_ticks
+    ;                                       => convert to hexadecimal - 1,
+    ;                                          because 0x00 is one count
+    ;7812.5 ticks / (1000ms / 10ms) = 78 ticks
+    ;                               => $4E -1
+    ;                               = $4D
+    ldi r16, $4D
+    sts OCR2A, r16
+
+    /* using TIMER2_COMPA interrupt */
+    ldi r16, (1 << OCIE2A)
+    sts TIMSK2, r16
+.endmacro
+
+
+;******************************************************************************;
+; MACRO: INIT_SLEEP
+; Registers used: r16
+; Description: Initializes sleep mode to user power-save mode.
+;******************************************************************************
+.macro INIT_SLEEP
+    ldi r16, (1 << SM1) | (1 << SM0)
+    out SMCR, r16
 .endmacro
 
 

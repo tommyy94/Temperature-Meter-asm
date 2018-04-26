@@ -2,7 +2,6 @@
 ;   HEADER FILES
 ;******************************************************************************;
 .nolist
-.include "m328pdef.inc"
 .include "lcd.asm"
 .list
 
@@ -37,22 +36,50 @@
 .equ CONTROL_LINES = PORTB
 .equ CONTROL_DIRECTION = DDRB
 
-.equ FIRST_LINE_ADDRESS = 0x80
-.equ SECOND_LINE_ADDRESS = 0xC0
-.equ THIRD_LINE_ADDRESS = 0x94
-.equ FOURTH_LINE_ADDRESS = 0xD4
+.equ FIRST_LINE_ADDRESS = $80
+.equ SECOND_LINE_ADDRESS = $C0
+.equ THIRD_LINE_ADDRESS = $94
+.equ FOURTH_LINE_ADDRESS = $D4
 
-.equ CLEAR_DISPLAY = 0x01
-.equ SET_4_BIT = 0x28
-.equ SET_8_BIT = 0x38
-.equ DISPLAY_ON_CURSOR_OFF = 0x0C
-.equ DISPLAY_ON_CURSOR_ON = 0x0E
-.equ DISPLAY_ON_CURSOR_BLINK = 0x0F
+.equ BUSY_FLAG = $80
+
+.equ FIRST_ROW_POS = 0
+.equ SECOND_ROW_POS= 64
+.equ THIRD_ROW_POS = 32
+.equ FOURTH_ROW_POS = 128
+
+.equ CLEAR_DISPLAY = $01
+.equ SET_4_BIT = $28
+.equ SET_8_BIT = $38
+.equ DISPLAY_ON_CURSOR_OFF = $0C
+.equ DISPLAY_ON_CURSOR_ON = $0E
+.equ DISPLAY_ON_CURSOR_BLINK = $0F
 
 
 ;******************************************************************************;
 ;   FIXED + DERIVED CONSTANTS
 ;******************************************************************************;
+.equ FIRST_ROW = 0
+.equ SECOND_ROW = 1
+.equ THIRD_ROW = 2
+.equ FOURTH_ROW = 3
+
+.equ FIRST_COLUMN = 0
+.equ SECOND_COLUMN = 1
+.equ THIRD_COLUMN = 2
+.equ FOURTH_COLUMN = 3
+.equ FIFTH_COLUMN = 4
+.equ SIXTH_COLUMN = 5
+.equ SEVENTH_COLUMN = 6
+.equ EIGHT_COLUMN = 7
+.equ NINTH_COLUMN = 8
+.equ TENTH_COLUMN = 9
+.equ ELEVENTH_COLUMN = 10
+.equ TWELFTH_COLUMN = 11
+.equ THIRTEENTH_COLUMN = 12
+.equ FOURTEENTH_COLUMN = 13
+.equ FIFTEENTH_COLUMN = 14
+.equ SIXTEENTH_COLUMN = 15
 
 
 ;******************************************************************************;
@@ -63,7 +90,6 @@
 ;******************************************************************************;
 ;   SRAM DEFINITIONS
 ;******************************************************************************;
-
 
 ;******************************************************************************;
 ;   MACROS
