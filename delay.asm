@@ -5,7 +5,7 @@
 
 ;******************************************************************************;
 ; SUBROUTINE: delay_10_us
-; Registers used: tmp_reg0
+; Registers used: r16
 ; Description: 10 microsecond delay loop.
 ;******************************************************************************;
 ;
@@ -30,9 +30,9 @@
 ; => 79 + nop = 80 cycles = 10 us
 ;
 delay_10_us:                                ;3 cycles
-    ldi tmp_reg0, COUNTER_DELAY_10_US       ;1 cycle
+    ldi r16, COUNTER_DELAY_10_US       ;1 cycle
 delay_10_us_loop:
-    dec tmp_reg0                            ;1 cycle
+    dec r16                            ;1 cycle
     brne delay_10_us_loop                   ;3 * 23 + 1
     nop                                     ;1 cycle
     ret                                     ;4 cycles
@@ -40,27 +40,27 @@ delay_10_us_loop:
     
 ;******************************************************************************;
 ; SUBROUTINE: sleep_10ms
-; Registers used: tmp_reg0
+; Registers used: r16
 ; Description: Sleeps for 10 ms. Writes Sleep Enable bit to logic one and sleep 
 ; until interrupt occurs, then clears Sleep Enable bit.
 ;******************************************************************************;
 sleep_10ms:
-    push tmp_reg0
+    push r16
     
     sei ;enable interrupts so we can wake up
 
     ;enable sleep
-    in tmp_reg0, SMCR
-    ori tmp_reg0, (1 << SE)
-    out SMCR, tmp_reg0
+    in r16, SMCR
+    ori r16, (1 << SE)
+    out SMCR, r16
 
     sleep
 
     ;disable sleep
-    andi tmp_reg0, ~(1 << SE)
-    out SMCR, tmp_reg0
+    andi r16, ~(1 << SE)
+    out SMCR, r16
     
-    pop tmp_reg0
+    pop r16
     ret
 
     

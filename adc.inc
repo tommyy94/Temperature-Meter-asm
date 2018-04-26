@@ -43,19 +43,19 @@
 
 ;******************************************************************************;
 ; MACRO: INIT_ADC
-; Registers used: tmp_reg0
+; Registers used: r16
 ; Description: Initializes the ADC. Separate voltage reference is used and ADC
 ; resolution is 125 kHz.
 ;******************************************************************************
 .macro INIT_ADC
     ;using separate voltage source in ADC
-    ldi tmp_reg0, (1 << REFS0)
-    sts ADMUX, tmp_reg0
+    ldi r16, (1 << REFS0)
+    sts ADMUX, r16
 
     ;set division factor between system clock and the ADC to 64, so:
     ;8MHz/64 = 125kHz
-    ldi tmp_reg0, (1 << ADEN) | (1 << ADPS2) | (1 << ADPS1)
-    sts ADCSRA, tmp_reg0
+    ldi r16, (1 << ADEN) | (1 << ADPS2) | (1 << ADPS1)
+    sts ADCSRA, r16
 .endmacro
 
 

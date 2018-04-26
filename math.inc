@@ -2,13 +2,12 @@
 ;   HEADER FILES
 ;******************************************************************************;
 .nolist
-.include "delay.asm"
+.include "math.asm"
 .list
 
 ;******************************************************************************;
 ;   HARDWARE INFORMATION
 ;******************************************************************************;
-;8 MHz system clock speed
 
 
 ;******************************************************************************;
@@ -24,7 +23,7 @@
 ;******************************************************************************;
 ;   FIXED + DERIVED CONSTANTS
 ;******************************************************************************;
-.equ COUNTER_DELAY_10_US = 24
+
 
 
 ;******************************************************************************;
@@ -37,57 +36,18 @@
 ;******************************************************************************;
 
 
+
 ;******************************************************************************;
 ;   MACROS
 ;******************************************************************************;
 .listmac ;list macros in .lst file
 
 ;******************************************************************************;
-; MACRO: INIT_TIMER2
-; Registers used: r16
-; Description: Initializes timer2 (8-bit), 10 ms CTC mode.
+; MACRO:
+; Registers used:
+; Description:
 ;******************************************************************************
-.macro INIT_TIMER2
-    ; timer_ticks = CPU frequency / timer prescaler
-    ;             = 8 MHz / 1024 clk
-    ;             = 7812.5 timer ticks (=> 1000 ms)
-    ;
-    ; converting to milliseconds:
-    ; duration_as_hex = timer_ticks * <time to sleep in milliseconds>
-    ; NOTE: $00 is one count!
-    
-    ;CTC mode
-    ldi r16, (1 << WGM21)
-    sts TCCR2A, r16
 
-    ;set timer prescaler to 1024
-    ldi r16, (1 << CS22) | (1 << CS21) | (1 << CS20)
-    sts TCCR2B, r16
-
-    ;7812.5 ticks / (1000ms / target_delay) = target_delay_in_ticks
-    ;                                       => convert to hexadecimal - 1,
-    ;                                          because 0x00 is one count
-    ;7812.5 ticks / (1000ms / 10ms) = 78 ticks
-    ;                               => $4E -1
-    ;                               = $4D
-    ldi r16, $4D
-    sts OCR2A, r16
-
-    /* using TIMER2_COMPA interrupt */
-    ldi r16, (1 << OCIE2A)
-    sts TIMSK2, r16
-.endmacro
-
-
-;******************************************************************************;
-; MACRO: INIT_SLEEP
-; Registers used: r16
-; Description: Initializes sleep mode to user power-save mode.
-;******************************************************************************
-.macro INIT_SLEEP
-    ldi r16, (1 << SM1) | (1 << SM0)
-    out SMCR, r16
-.endmacro
 
 
 .exit

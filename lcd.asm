@@ -4,61 +4,61 @@
 
 
 .cseg
-.org $0095
+.org $0150
  
 
 ;******************************************************************************;
 ; SUBROUTINE: lcd_execute_instruction
-; Registers used: tmp_reg0
+; Registers used: r16
 ; Description: Sets EN bit HIGH, then after 2 cycles LOW to execute the given
 ; instruction.
 ;******************************************************************************;
 lcd_execute_instruction:
-    push tmp_reg0
+    push r16
 
     ;set EN HIGH
-    in tmp_reg0, CONTROL_LINES
-    ori tmp_reg0, (1  << EN)
-    out CONTROL_LINES, tmp_reg0
+    in r16, CONTROL_LINES
+    ori r16, (1  << EN)
+    out CONTROL_LINES, r16
     ;wait for 2 cycles
     nop
     nop
     ;set EN LOW to execute given instruction
-    andi tmp_reg0, ~(1 << EN)
-    out CONTROL_LINES, tmp_reg0
+    andi r16, ~(1 << EN)
+    out CONTROL_LINES, r16
 
-    pop tmp_reg0
+    pop r16
     ret
 
     
 ;******************************************************************************;
 ; SUBROUTINE: lcd_wait_if_busy
-; Registers used: tmp_reg0
+; Registers used: r16
 ; Description: Sets command and read mode, data direction to reading.
 ; Stays in loop until LCD is available, sets data direction to writing.
 ;******************************************************************************;
 lcd_wait_if_busy:
-    push tmp_reg0
+    push r16
     
     ;read from data port 
-    andi tmp_reg0, ~$FF
-    out DATA_DIRECTION, tmp_reg0
+    andi r16, ~$FF
+    out DATA_DIRECTION, r16
 
     ;command mode, read mode
-    in tmp_reg0, CONTROL_LINES
-    andi tmp_reg0, ~(1 << RS)
-    ori tmp_reg0, (1 << RW)
-    out CONTROL_LINES, tmp_reg0
+    in r16, CONTROL_LINES
+    andi r16, ~(1 << RS)
+    ori r16, (1 << RW)
+    out CONTROL_LINES, r16
 
 keep_waiting:
     rcall lcd_execute_instruction
-    in tmp_reg0, DATA_LINES
-    cpi tmp_reg0, FIRST_LINE_ADDRESS
+    in r16, DATA_LINES
+    cpi r16, BUSY_FLAG
     brsh keep_waiting
     
     ;write to data port
-    ori tmp_reg0, $FF
-    out DATA_DIRECTION, tmp_reg0
+    ori r16, $FF
+    out DATA_DIRECTION, r16
     
     ;50 us delay done efficiently
     rcall delay_10_us
@@ -67,51 +67,55 @@ keep_waiting:
     rcall delay_10_us
     rcall delay_10_us
 
-    pop tmp_reg0
+    pop r16
     ret
     
     
 ;******************************************************************************;
 ; SUBROUTINE: lcd_send_command
-; Registers used: tmp_reg0
+; Registers used: r16
 ; Description: Sends command to data lines, sets write and command mode, sends
 ; the command and clears the data lines.
 ;******************************************************************************;
 lcd_send_command:
-    push tmp_reg0
+    push r16
 
     rcall lcd_wait_if_busy
     
     ;overwrite whole register
-    out DATA_LINES, param_reg0 ;routine parameter
+    out DATA_LINES, r20 ;routine parameter
 
     ;write mode, command mode
-    in tmp_reg0, CONTROL_LINES
-    andi tmp_reg0, ~((1 << RW) | (1 << RS))
-    out CONTROL_LINES, tmp_reg0
+    in r16, CONTROL_LINES
+    andi r16, ~((1 << RW) | (1 << RS))
+    out CONTROL_LINES, r16
 
     ;send command here
     rcall lcd_execute_instruction
 
     ;clear data lines
-    andi tmp_reg0, ~$FF
-    out DATA_LINES, tmp_reg0
+    andi r16, ~$FF
+    out DATA_LINES, r16
 
-    pop tmp_reg0
+    pop r16
     ret
     
     
 ;******************************************************************************;
 ; SUBROUTINE: lcd_goto
-; Registers used: tmp_reg0, param_reg0, param_reg1, param_reg2
+; Registers used: r20, r21, r22
 ; Parameters: x & y -coordinates
 ; Description: Moves the LCD cursor relative to first the line address.
 ;******************************************************************************;
 lcd_goto:
+    push r16
+    push r21
+    push r22
+
     ;sum params together to get new cursor position
-    ldi param_reg0, FIRST_LINE_ADDRESS
-    add param_reg0, param_reg1
-    add param_reg0, param_reg2
+    ldi r20, FIRST_LINE_ADDRESS
+    add r20, r21
+    add r20, r22
 
     rcall lcd_send_command
 
@@ -122,73 +126,69 @@ lcd_goto:
     rcall delay_10_us
     rcall delay_10_us
 
+    pop r22
+    pop r21
+    pop r16
     ret
 
 ;******************************************************************************;
 ; SUBROUTINE: lcd_send_character
-; Registers used: tmp_reg0, param-reg0
+; Registers used: r16, r20
 ; Description: Sends character to be sent to data lines, sets read and text
 ; mode, then sends it and clears data lines.
 ;******************************************************************************;
 lcd_send_character:
-    push tmp_reg0
+    push r16
 
     rcall lcd_wait_if_busy
     
     ;load value to datalines, so it can be sent forward
-    out DATA_LINES, param_reg0
+    out DATA_LINES, r20
     
     ;read mode, text mode
-    in tmp_reg0, CONTROL_LINES
-    andi tmp_reg0, ~(1 << RW)
-    ori tmp_reg0, (1 << RS)
-    out CONTROL_LINES, tmp_reg0
+    in r16, CONTROL_LINES
+    andi r16, ~(1 << RW)
+    ori r16, (1 << RS)
+    out CONTROL_LINES, r16
 
     ;send character here
     rcall lcd_execute_instruction
 
      ;clear data lines
-    andi tmp_reg0, ~$FF
-    out DATA_LINES, tmp_reg0
+    andi r16, ~$FF
+    out DATA_LINES, r16
 
     ;delay needed after sending character
     rcall delay_10_us
 
-    pop tmp_reg0
+    pop r16
     ret
 
     
 ;******************************************************************************;
 ; SUBROUTINE: lcd_send_string
-; Registers used: 
-; Description: 
+; Registers used: r16 (char counter), r20 (pointer to character),
+; ZH:ZL (pointer to string)
+; Description: Sends string of characters to data lines.
 ;******************************************************************************;
 lcd_send_string:
-    push tmp_reg0
-    
     ;move cursor to given position
     rcall lcd_goto
 
-    ;handle string table
-	ldi ZH, high(2*string) ;program memory is stored in 16-bit words, so
-	ldi ZL, low(2*string)  ;multiply by 2 to extract bytes
-
 lcd_send_char_loop:
-    ;read character from table and pass as parameter to subroutine
-    lpm param_reg0, Z+ ;inc pointer for next character
-    cpi param_reg0, 0 ;if loaded value is escape sequence character
-    breq lcd_send_char_loop_end ;jump to end
+    ;read character from table (RAM) and pass as parameter to subroutine
+    ld r20, Z+ ;inc pointer for next character
+    dec r16
     rcall lcd_send_character ;else send the loaded character
-    rjmp lcd_send_char_loop
+    cpi r16, 0 ;if loaded value is escape sequence character
+    brne lcd_send_char_loop ;jump to end
 
-lcd_send_char_loop_end:
-    pop tmp_reg0
     ret
 
 
 ;******************************************************************************;
 ; SUBROUTINE: lcd_init
-; Registers used: tmp_reg0
+; Registers used: r16, r20
 ; Description: Sets enable, register select and read/write bits in
 ; CONTROL_DIRECTION port. Also sets the LCD to use 8-bit mode, cursor mode and
 ; clears the display.
@@ -197,20 +197,20 @@ lcd_init:
     ;initialize pins for LCD
     ;modify instead of overwriting, because something else
     ;might use CONTROL_DIRECTION port too
-    in tmp_reg0, CONTROL_DIRECTION
-    ori tmp_reg0, (1 << EN) | (1 << RW) | (1 << RS)
-    out CONTROL_DIRECTION, tmp_reg0
+    in r16, CONTROL_DIRECTION
+    ori r16, (1 << EN) | (1 << RW) | (1 << RS)
+    out CONTROL_DIRECTION, r16
     rcall sleep_10ms
 
-    ldi param_reg0, SET_8_BIT
+    ldi r20, SET_8_BIT
     rcall lcd_send_command
     rcall sleep_10ms
 
-    ldi param_reg0, DISPLAY_ON_CURSOR_OFF
+    ldi r20, DISPLAY_ON_CURSOR_OFF
     rcall lcd_send_command
     rcall sleep_10ms
 
-    ldi param_reg0, CLEAR_DISPLAY
+    ldi r20, CLEAR_DISPLAY
     rcall lcd_send_command
     rcall sleep_10ms
     
@@ -221,9 +221,5 @@ lcd_init:
 ;   INTERRUPT SERVICE ROUTINES
 ;******************************************************************************;
 
-
-
-
-string: .db "string"
 
 .exit

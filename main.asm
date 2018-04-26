@@ -42,7 +42,10 @@ reti nop                ; SPM_RDY
 
 ;******************************************************************************;
 ;   INITIALIZE
-;******************************************************************************;
+;******************************************************************************
+.cseg
+.org $0300
+
 reset:
     INIT_STACK_POINTER
     SET_CLK_PRESCALER ;using 8 MHz clock speed
@@ -62,11 +65,21 @@ reset:
 ;    MAIN LOOP
 ;******************************************************************************;
 main:
-    rcall adc_read
+    rcall adc_read ;result stored in r19:r18
+    CELSIUS_FORMULA
+    ;FAHRENHEIT_FORMULA r19, r18
+    ;KELVIN_FORMULA r19, r18
+
+    rcall integer_to_ascii
 
     ;load parameters for subroutine
-    ldi param_reg1, FIRST_COLUMN
-    ldi param_reg2, FIRST_ROW_POS
+    ldi r21, FIRST_COLUMN
+    ldi r22, FIRST_ROW_POS
+
+	ldi ZH, HIGH(string_to_send) ;program memory is stored in 16-bit words, so
+	ldi ZL, LOW(string_to_send)  ;multiply by 2 to extract bytes
+    ldi r16, 4 ;counter
+
     rcall lcd_send_string
     
     rcall sleep_10ms
